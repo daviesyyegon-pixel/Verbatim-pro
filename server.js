@@ -14,7 +14,7 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.static(path.join(__dirname)));
 
-const geminiModel = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+const geminiModel = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
 
 const cleanUpFile = (filePath) => {
     fs.unlink(filePath, (err) => {
