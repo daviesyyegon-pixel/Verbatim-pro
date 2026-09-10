@@ -46,7 +46,7 @@ const commitEdit = (element) => {
 };
 
 const normalizeSegments = (segments) => {
-    let cursor = Number(segments[0] ? .startMs) || 0;
+    let cursor = Number(segments.length ? segments[0].startMs : 0) || 0;
     return segments.map((segment, index) => {
         const startMs = cursor;
         const requestedEnd = Number(segment.endMs) || startMs + 5000;
