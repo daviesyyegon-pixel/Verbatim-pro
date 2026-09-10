@@ -24,7 +24,7 @@ const cleanUpFile = (filePath) => {
     });
 };
 
-const requestGemini = async (url, body) => {
+const requestGemini = async(url, body) => {
     let lastError = 'Gemini transcription failed.';
     for (let attempt = 0; attempt < 3; attempt += 1) {
         const response = await fetch(url, {
@@ -56,13 +56,13 @@ app.post('/api/transcribe', upload.single('audio'), async(req, res) => {
 
         const audioData = fs.readFileSync(filePath).toString('base64');
         const geminiPayload = await requestGemini(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${encodeURIComponent(process.env.GEMINI_API_KEY)}`, {
-                contents: [{
-                    parts: [
-                        { text: 'Transcribe this recording with speaker diarization. Return ONLY valid JSON in this exact shape: {"segments":[{"startMs":0,"endMs":1000,"speaker":"Male_1","text":"..."}]}. Use millisecond integers and preserve the exact spoken words. Identify each distinct voice from the audio and assign a stable label: Male_1, Male_2 for male voices and Female_1, Female_2 for female voices. Reuse the same label every time that person speaks. Never alternate labels by segment.' },
-                        { inline_data: { mime_type: req.file.mimetype || 'audio/mpeg', data: audioData } },
-                    ]
-                }],
-                generationConfig: { responseMimeType: 'application/json', temperature: 0.1 },
+            contents: [{
+                parts: [
+                    { text: 'Transcribe this recording with speaker diarization. Return ONLY valid JSON in this exact shape: {"segments":[{"startMs":0,"endMs":1000,"speaker":"Male_1","text":"..."}]}. Use millisecond integers and preserve the exact spoken words. Identify each distinct voice from the audio and assign a stable label: Male_1, Male_2 for male voices and Female_1, Female_2 for female voices. Reuse the same label every time that person speaks. Never alternate labels by segment.' },
+                    { inline_data: { mime_type: req.file.mimetype || 'audio/mpeg', data: audioData } },
+                ]
+            }],
+            generationConfig: { responseMimeType: 'application/json', temperature: 0.1 },
         });
         const candidate = geminiPayload.candidates && geminiPayload.candidates[0];
         const parts = candidate && candidate.content && candidate.content.parts;
