@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Verbatim Pro | Studio transcription</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+    <div class="app-shell">
+        <header class="topbar">
+            <a class="brand" href="#app" aria-label="Verbatim Pro home"><span class="brand-mark">V</span><span>verbatim<span class="brand-accent">.</span></span></a>
+            <nav class="topnav" aria-label="Primary navigation"><a class="active" href="#app">Dashboard</a><a href="#editor">New transcription</a><a href="#exports">My transcripts</a><a href="#settings">Settings</a></nav>
+            <div class="topbar-actions"><span class="save-state" id="saveState">All changes saved</span><button class="icon-button" id="helpButton" title="About Verbatim Pro" aria-label="About Verbatim Pro">?</button></div>
+        </header>
+
+        <main id="app">
+            <section class="workspace-head" id="editor">
+                <div>
+                    <p class="kicker">AI TRANSCRIPTION · EDITED VERBATIM · CONTINUOUS TIMESTAMPS</p>
+                    <h1>Professional transcripts,<br /><em>timestamped to the millisecond.</em></h1>
+                    <p class="lede">Upload audio or video, let Gemini transcribe and detect speakers, then edit with continuous HH:MM:SS:MMM timestamps and export anywhere.</p>
+                </div>
+                <div class="head-stats">
+                    <div><strong id="durationStat">00:00:36</strong><span>recording length</span></div>
+                    <div><strong id="wordStat">0</strong><span>words</span></div>
+                    <div><strong id="speakerStat">0</strong><span>speakers</span></div>
+                </div>
+            </section>
+
+            <section class="studio-grid">
+                <aside class="media-column">
+                    <div class="media-card">
+                        <div class="media-topline"><span class="live-dot"></span><span id="fileName">No recording loaded</span><button class="icon-button small" id="clearAudio" title="Clear recording" aria-label="Clear recording">×</button></div>
+                        <div class="session-meta"><span>SESSION</span><strong id="sessionName">Not started</strong><small id="sessionStatus">Upload audio to begin</small></div>
+                        <div class="waveform" id="waveform" aria-label="Audio waveform"></div>
+                        <div class="player-time"><strong id="currentTime">00:00:00</strong><span id="totalTime">/ 00:00:36</span></div>
+                        <div class="player-controls"><button class="round-button" id="skipBack" title="Back 5 seconds" aria-label="Back 5 seconds">↶</button><button class="play-button" id="playButton" title="Play recording" aria-label="Play recording">▶</button><button class="round-button"
+                                id="skipForward" title="Forward 5 seconds" aria-label="Forward 5 seconds">↷</button></div>
+                        <audio id="audioPlayer" preload="metadata"></audio>
+                        <input id="audioFile" class="visually-hidden" type="file" accept="audio/*,video/mp4,video/quicktime,video/webm" />
+                        <button class="upload-trigger" id="uploadTrigger"><span>＋</span> Upload recording <small>MP3 · WAV · M4A · MP4 · MOV · WEBM</small></button>
+                    </div>
+                    <div class="ai-card">
+                        <div class="card-label"><span class="spark">✦</span> POWERED BY GEMINI AI</div>
+                        <h2>Ready when you are.</h2>
+                        <p>Upload a recording to generate a timestamped transcript with automatic speaker detection.</p><button class="ai-action" id="transcribeButton">Transcribe with Gemini <span>→</span></button><button class="sample-link" id="generateSample">Explore with sample recording</button></div>
+                    <div class="tips-card"><span class="tip-icon">⌘</span>
+                        <div><strong>Editor shortcuts</strong>
+                            <p><kbd>⌘ K</kbd> Search transcript<br /><kbd>⌘ Z</kbd> Undo last edit</p>
+                        </div>
+                    </div>
+                </aside>
+
+                <section class="transcript-column">
+                    <div class="editor-toolbar">
+                        <div class="toolbar-title"><span class="status-dot"></span>
+                            <div><strong id="documentName">Untitled recording</strong><span id="segmentCount">0 segments</span></div>
+                        </div>
+                        <div class="toolbar-actions"><button class="tool-button" id="undoButton" title="Undo">↶ <span>Undo</span></button><button class="tool-button" id="redoButton" title="Redo">↷ <span>Redo</span></button><button class="tool-button" id="searchToggle" title="Search and replace">⌕ <span>Find</span></button>
+                            <button class="primary-button" id="addSegment">＋ Add segment</button>
+                        </div>
+                    </div>
+                    <div class="search-bar hidden" id="searchBar"><input id="searchInput" placeholder="Find in transcript" /><input id="replaceInput" placeholder="Replace with" /><button class="tool-button" id="replaceButton">Replace</button><button class="tool-button" id="replaceAllButton">Replace all</button>
+                        <button class="icon-button small" id="closeSearch" aria-label="Close search">×</button>
+                    </div>
+                    <div class="editor-note"><span>●</span> Click any segment to play from that moment. End times stay continuous automatically.</div>
+                    <div class="segments" id="segments"></div>
+                    <div class="empty-state hidden" id="emptyState"><span class="empty-mark">✦</span>
+                        <h2>Your transcript starts here.</h2>
+                        <p>Upload a recording, load the sample, or paste a transcript to begin editing.</p><button class="primary-button" id="emptyUpload">Upload recording</button></div>
+                    <div class="end-marker"><span>END OF RECORDING</span><strong id="endMarker">00:00:36:000</strong></div>
+                </section>
+
+                <section class="bottom-grid" id="exports">
+                    <div class="export-card">
+                        <div class="section-heading">
+                            <div>
+                                <p class="kicker">DELIVER</p>
+                                <h2>Export your transcript</h2>
+                            </div><span class="format-note">Speaker-first format · HH:MM:SS:MMM</span></div>
+                        <div class="export-buttons"><button data-export="txt">TXT <small>Plain text</small></button><button data-export="srt">SRT <small>Subtitles</small></button><button data-export="vtt">VTT <small>Web video</small></button><button data-export="json">JSON <small>Structured data</small></button>
+                            <button data-export="word">WORD <small>Microsoft Word</small></button><button data-export="pdf">PDF <small>Print-ready</small></button><button id="copySession" class="copy-button">COPY SESSION <small>Copy transcript</small></button></div>
+                        <textarea id="exportText" class="export-preview" readonly aria-label="Transcript export preview"></textarea>
+                    </div>
+                    <div class="paste-card">
+                        <div class="section-heading">
+                            <div>
+                                <p class="kicker">IMPORT</p>
+                                <h2>Bring a transcript</h2>
+                            </div>
+                        </div><textarea id="rawTranscript" placeholder="Male_1\n00:00:00:000 --> 00:00:05:473\nHello, welcome to the program."></textarea><button class="secondary-button" id="parseTranscript">Parse transcript <span>→</span></button></div>
+                </section>
+        </main>
+        <footer><span>VERBATIM PRO</span><span>Built for careful listening.</span><span id="statusMessage">Ready to transcribe</span></footer>
+    </div>
+    <script src="script.js"></script>
+</body>
+
+</html>
