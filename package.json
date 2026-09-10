@@ -4,7 +4,8 @@
     "description": "Verbatim Pro transcription app with backend transcription integration.",
     "main": "server.js",
     "scripts": {
-        "start": "node server.js"
+        "start": "node server.js",
+        "check": "node --check server.js && node --check script.js"
     },
     "dependencies": {
         "cors": "^2.8.5",
