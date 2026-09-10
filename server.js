@@ -51,8 +51,11 @@ app.post('/api/transcribe', upload.single('audio'), async(req, res) => {
             }),
         });
         const geminiPayload = await geminiResponse.json();
-        if (!geminiResponse.ok) throw new Error(geminiPayload.error?.message || 'Gemini transcription failed.');
-        const responseText = geminiPayload.candidates?.[0]?.content?.parts?.find((part) => part.text)?.text || '';
+        if (!geminiResponse.ok) throw new Error((geminiPayload.error && geminiPayload.error.message) || 'Gemini transcription failed.');
+        const candidate = geminiPayload.candidates && geminiPayload.candidates[0];
+        const parts = candidate && candidate.content && candidate.content.parts;
+        const responsePart = parts && parts.find((part) => part.text);
+        const responseText = responsePart ? responsePart.text : '';
         const transcription = JSON.parse(responseText.replace(/^```json\s*|\s*```$/g, '').trim());
 
         if (!Array.isArray(transcription.segments) || transcription.segments.length === 0) {
@@ -74,7 +77,7 @@ app.post('/api/transcribe', upload.single('audio'), async(req, res) => {
         return res.json({ sessionId: path.basename(req.file.filename), fileName: req.file.originalname, segments: result });
     } catch (error) {
         console.error(error);
-        return res.status(500).json({ error: error?.message || 'Transcription failed.' });
+        return res.status(500).json({ error: error && error.message || 'Transcription failed.' });
     } finally {
         cleanUpFile(filePath);
     }
