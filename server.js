@@ -5,9 +5,11 @@ const fs = require('fs');
 const path = require('path');
 
 const app = express();
+const maxUploadBytes = 60 * 1024 * 1024;
+const inlineAudioLimit = 15 * 1024 * 1024;
 const upload = multer({
     dest: 'uploads/',
-    limits: { fileSize: 500 * 1024 * 1024 },
+    limits: { fileSize: maxUploadBytes },
 });
 const port = process.env.PORT || 3000;
 
@@ -42,24 +44,76 @@ const requestGemini = async(url, body) => {
     throw new Error(lastError);
 };
 
+const uploadGeminiFile = async (filePath, mimeType, displayName) => {
+    const apiKey = encodeURIComponent(process.env.GEMINI_API_KEY);
+    const fileSize = fs.statSync(filePath).size;
+    const startResponse = await fetch(`https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`, {
+        method: 'POST',
+        headers: {
+            'X-Goog-Upload-Protocol': 'resumable',
+            'X-Goog-Upload-Command': 'start',
+            'X-Goog-Upload-Header-Content-Length': String(fileSize),
+            'X-Goog-Upload-Header-Content-Type': mimeType,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ file: { display_name: displayName } }),
+    });
+    if (!startResponse.ok) throw new Error('Gemini file upload could not be started.');
+    const uploadUrl = startResponse.headers.get('x-goog-upload-url');
+    if (!uploadUrl) throw new Error('Gemini did not return a file upload URL.');
+    const uploadResponse = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: {
+            'Content-Length': String(fileSize),
+            'X-Goog-Upload-Offset': '0',
+            'X-Goog-Upload-Command': 'upload, finalize',
+            'Content-Type': mimeType,
+        },
+        body: fs.readFileSync(filePath),
+    });
+    const payload = await uploadResponse.json();
+    if (!uploadResponse.ok || !payload.file || !payload.file.uri) throw new Error((payload.error && payload.error.message) || 'Gemini file upload failed.');
+    let file = payload.file;
+    for (let attempt = 0; attempt < 20 && file.state === 'PROCESSING'; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        const statusResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/${file.name}?key=${apiKey}`);
+        if (!statusResponse.ok) throw new Error('Gemini could not check uploaded file status.');
+        file = await statusResponse.json();
+    }
+    if (file.state && file.state !== 'ACTIVE') throw new Error('Gemini could not prepare the uploaded recording.');
+    return file;
+};
+
+const deleteGeminiFile = async (fileName) => {
+    if (!fileName) return;
+    try {
+        await fetch(`https://generativelanguage.googleapis.com/v1beta/${fileName}?key=${encodeURIComponent(process.env.GEMINI_API_KEY)}`, { method: 'DELETE' });
+    } catch (error) {
+        console.error('Gemini file cleanup error:', error);
+    }
+};
+
 app.post('/api/transcribe', upload.single('audio'), async(req, res) => {
     if (!req.file) {
         return res.status(400).json({ error: 'Audio file is required.' });
     }
 
     const filePath = path.resolve(req.file.path);
+    let uploadedFile = null;
 
     try {
         if (!process.env.GEMINI_API_KEY) {
             throw new Error('GEMINI_API_KEY is required to transcribe an uploaded session.');
         }
 
-        const audioData = fs.readFileSync(filePath).toString('base64');
+        const audioData = req.file.size <= inlineAudioLimit ? fs.readFileSync(filePath).toString('base64') : null;
+        uploadedFile = audioData ? null : await uploadGeminiFile(filePath, req.file.mimetype || 'audio/mpeg', req.file.originalname);
+        const audioPart = uploadedFile ? { file_data: { mime_type: uploadedFile.mimeType || req.file.mimetype || 'audio/mpeg', file_uri: uploadedFile.uri } } : { inline_data: { mime_type: req.file.mimetype || 'audio/mpeg', data: audioData } };
         const geminiPayload = await requestGemini(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${encodeURIComponent(process.env.GEMINI_API_KEY)}`, {
             contents: [{
                 parts: [
                     { text: 'Transcribe this recording with speaker diarization. Return ONLY valid JSON in this exact shape: {"segments":[{"startMs":0,"endMs":1000,"speaker":"Male_1","text":"..."}]}. Use millisecond integers and preserve the exact spoken words. Identify each distinct voice from the audio and assign a stable label: Male_1, Male_2 for male voices and Female_1, Female_2 for female voices. Reuse the same label every time that person speaks. Never alternate labels by segment.' },
-                    { inline_data: { mime_type: req.file.mimetype || 'audio/mpeg', data: audioData } },
+                    audioPart,
                 ]
             }],
             generationConfig: { responseMimeType: 'application/json', temperature: 0.1 },
@@ -91,13 +145,14 @@ app.post('/api/transcribe', upload.single('audio'), async(req, res) => {
         console.error(error);
         return res.status(500).json({ error: error && error.message || 'Transcription failed.' });
     } finally {
+        await deleteGeminiFile(uploadedFile && uploadedFile.name);
         cleanUpFile(filePath);
     }
 });
 
 app.use((error, req, res, next) => {
     if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
-        return res.status(413).json({ error: 'Recording is too large. Maximum upload size is 500 MB.' });
+        return res.status(413).json({ error: 'Recording is too large. Maximum upload size is 60 MB.' });
     }
     if (error) {
         console.error(error);

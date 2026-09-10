@@ -8,6 +8,7 @@ let transcriptSegments = [];
 let history = [];
 let future = [];
 let recordingDuration = 36000;
+const maxUploadBytes = 60 * 1024 * 1024;
 
 const createSegment = (startMs, endMs, speaker, text) => ({ startMs, endMs, speaker, text });
 const pad = (value, length = 2) => String(Math.max(0, Math.floor(value))).padStart(length, '0');
@@ -109,7 +110,7 @@ const undo = () => { if (!history.length) return; future.push(snapshot()); trans
 const redo = () => { if (!future.length) return; history.push(snapshot()); transcriptSegments = JSON.parse(future.pop()); render(); setStatus('Edit restored.'); };
 
 $('uploadTrigger').addEventListener('click', () => audioFileInput.click()); $('emptyUpload').addEventListener('click', () => audioFileInput.click());
-audioFileInput.addEventListener('change', () => { const file = audioFileInput.files[0]; if (!file) return; audioPlayer.src = URL.createObjectURL(file); $('fileName').textContent = file.name; $('documentName').textContent = file.name; $('sessionName').textContent = file.name; $('sessionStatus').textContent = 'Recording uploaded · ready for AI'; setStatus('Recording uploaded. Ready to transcribe with AI.'); });
+audioFileInput.addEventListener('change', () => { const file = audioFileInput.files[0]; if (!file) return; if (file.size > maxUploadBytes) { audioFileInput.value = ''; setStatus('Recording is too large. Maximum upload size is 60 MB.', true); return; } audioPlayer.src = URL.createObjectURL(file); $('fileName').textContent = file.name; $('documentName').textContent = file.name; $('sessionName').textContent = file.name; $('sessionStatus').textContent = 'Recording uploaded · ready for AI'; setStatus('Recording uploaded. Ready to transcribe with AI.'); });
 audioPlayer.addEventListener('loadedmetadata', () => { if (Number.isFinite(audioPlayer.duration)) { recordingDuration = Math.round(audioPlayer.duration * 1000); updateStats(); } });
 audioPlayer.addEventListener('timeupdate', () => { $('currentTime').textContent = formatTimestamp((audioPlayer.currentTime || 0) * 1000, true); document.querySelectorAll('.segment').forEach((card, index) => { const nextSegment = transcriptSegments[index + 1]; const nextStart = nextSegment ? nextSegment.startMs : Infinity; card.classList.toggle('playing', Number(card.dataset.start) <= audioPlayer.currentTime * 1000 && nextStart > audioPlayer.currentTime * 1000); }); });
 $('playButton').addEventListener('click', () => audioPlayer.paused ? audioPlayer.play().catch(() => {}) : audioPlayer.pause()); audioPlayer.addEventListener('play', () => { $('playButton').textContent = 'Ⅱ'; }); audioPlayer.addEventListener('pause', () => { $('playButton').textContent = '▶'; }); $('skipBack').addEventListener('click', () => { audioPlayer.currentTime = Math.max(0, audioPlayer.currentTime - 5); }); $('skipForward').addEventListener('click', () => { audioPlayer.currentTime = Math.min(audioPlayer.duration || recordingDuration / 1000, audioPlayer.currentTime + 5); });
