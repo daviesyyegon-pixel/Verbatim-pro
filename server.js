@@ -112,13 +112,16 @@ app.post('/api/transcribe', upload.single('audio'), async(req, res) => {
         const geminiPayload = await requestGemini(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${encodeURIComponent(process.env.GEMINI_API_KEY)}`, {
             contents: [{
                 parts: [
-                    { text: 'Transcribe this recording with speaker diarization. Return ONLY valid JSON in this exact shape: {"segments":[{"startMs":0,"endMs":1000,"speaker":"Male_1","text":"..."}]}. Use millisecond integers and preserve the exact spoken words. Identify each distinct voice from the audio and assign a stable label: Male_1, Male_2 for male voices and Female_1, Female_2 for female voices. Reuse the same label every time that person speaks. Never alternate labels by segment.' },
+                    { text: 'Transcribe the ENTIRE recording from the first spoken word to the last spoken word with speaker diarization. Do not summarize, skip, shorten, or stop early. Preserve every spoken word, pause boundary, repeated word, and correction. Continue until the actual end of the audio. Return ONLY valid JSON in this exact shape: {"segments":[{"startMs":0,"endMs":1000,"speaker":"Male_1","text":"..."}]}. Use millisecond integers. Identify each distinct voice and reuse a stable label every time that person speaks. Never alternate labels by segment. The final segment must reach the end of the recording.' },
                     audioPart,
                 ]
             }],
-            generationConfig: { responseMimeType: 'application/json', temperature: 0.1 },
+            generationConfig: { responseMimeType: 'application/json', temperature: 0.1, maxOutputTokens: 65536 },
         });
         const candidate = geminiPayload.candidates && geminiPayload.candidates[0];
+        if (candidate && candidate.finishReason === 'MAX_TOKENS') {
+            throw new Error('Gemini stopped before reaching the end of the recording. Please retry this recording.');
+        }
         const parts = candidate && candidate.content && candidate.content.parts;
         const responsePart = parts && parts.find((part) => part.text);
         const responseText = responsePart ? responsePart.text : '';
