@@ -26,7 +26,7 @@ const cleanUpFile = (filePath) => {
     });
 };
 
-const requestGemini = async(url, body) => {
+const requestGemini = async (url, body) => {
     let lastError = 'Gemini transcription failed.';
     for (let attempt = 0; attempt < 3; attempt += 1) {
         const response = await fetch(url, {
