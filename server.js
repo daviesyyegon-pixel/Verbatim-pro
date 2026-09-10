@@ -24,6 +24,24 @@ const cleanUpFile = (filePath) => {
     });
 };
 
+const requestGemini = async (url, body) => {
+    let lastError = 'Gemini transcription failed.';
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        const payload = await response.json();
+        if (response.ok) return payload;
+        lastError = (payload.error && payload.error.message) || lastError;
+        const retryable = response.status === 429 || response.status >= 500 || /high demand|temporarily|try again/i.test(lastError);
+        if (!retryable || attempt === 2) throw new Error(lastError);
+        await new Promise((resolve) => setTimeout(resolve, 1500 * (attempt + 1)));
+    }
+    throw new Error(lastError);
+};
+
 app.post('/api/transcribe', upload.single('audio'), async(req, res) => {
     if (!req.file) {
         return res.status(400).json({ error: 'Audio file is required.' });
@@ -37,10 +55,7 @@ app.post('/api/transcribe', upload.single('audio'), async(req, res) => {
         }
 
         const audioData = fs.readFileSync(filePath).toString('base64');
-        const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${encodeURIComponent(process.env.GEMINI_API_KEY)}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
+        const geminiPayload = await requestGemini(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${encodeURIComponent(process.env.GEMINI_API_KEY)}`, {
                 contents: [{
                     parts: [
                         { text: 'Transcribe this recording with speaker diarization. Return ONLY valid JSON in this exact shape: {"segments":[{"startMs":0,"endMs":1000,"speaker":"Male_1","text":"..."}]}. Use millisecond integers and preserve the exact spoken words. Identify each distinct voice from the audio and assign a stable label: Male_1, Male_2 for male voices and Female_1, Female_2 for female voices. Reuse the same label every time that person speaks. Never alternate labels by segment.' },
@@ -48,10 +63,7 @@ app.post('/api/transcribe', upload.single('audio'), async(req, res) => {
                     ]
                 }],
                 generationConfig: { responseMimeType: 'application/json', temperature: 0.1 },
-            }),
         });
-        const geminiPayload = await geminiResponse.json();
-        if (!geminiResponse.ok) throw new Error((geminiPayload.error && geminiPayload.error.message) || 'Gemini transcription failed.');
         const candidate = geminiPayload.candidates && geminiPayload.candidates[0];
         const parts = candidate && candidate.content && candidate.content.parts;
         const responsePart = parts && parts.find((part) => part.text);
